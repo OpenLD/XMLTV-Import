@@ -184,6 +184,20 @@ class EPGImport:
 				print>>log, "[EPGImport] File downloaded is not a valid gzip file", filename
 				self.downloadFail(e)
 				return
+		elif filename.endswith('.xz') or filename.endswith('.lzma'):
+			try:
+				import lzma
+			except ImportError:
+				from backports import lzma
+			self.fd = lzma.open(filename, 'rb')
+			try:
+				# read a bit to make sure it's an xz file
+				self.fd.read(10)
+				self.fd.seek(0,0)
+			except Exception, e:
+				print>>log, "[EPGImport] File downloaded is not a valid xz file", filename
+				self.downloadFail(e)
+				return
 		else:
 			self.fd = open(filename, 'rb')
 		if deleteFile and self.source.parser != 'epg.dat':
@@ -344,8 +358,10 @@ class EPGImport:
 	def do_download(self, sourcefile, afterDownload, downloadFail):
 		path = bigStorage(9000000, '/tmp', '/media/DOMExtender', '/media/cf', '/media/usb', '/media/hdd')
 		filename = os.path.join(path, 'epgimport')
-		if sourcefile.endswith('.gz'):
-			filename += '.gz'
+		ext = os.path.splitext(sourcefile)[1]
+		# Keep sensible extension, in particular the compression type
+		if ext and len(ext) < 6:
+			filename += ext
 		sourcefile = sourcefile.encode('utf-8')
 		print>>log, "[EPGImport] Downloading: " + sourcefile + " to local path: " + filename
 		host = sourcefile.split("/")[2]
