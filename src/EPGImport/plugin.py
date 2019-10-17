@@ -102,7 +102,6 @@ CONFIG_PATH = '/etc/epgimport'
 # Global variable
 autoStartTimer = None
 _session = None
-parse_autotimer = False
 BouquetChannelListList = None
 serviceIgnoreList = None
 
@@ -187,6 +186,9 @@ def channelFilter(ref):
 	if refstr in serviceIgnoreList:
 		print>>log, "Serviceref is in ignore list:", refstr
 		return False
+	if "%3a//" in ref.lower():
+		print>>log, "URL detected in serviceref, not checking fake recording on serviceref:", ref
+		return True
 	fakeRecService = NavigationInstance.instance.recordService(sref, True)
 	if fakeRecService:
 		fakeRecResult = fakeRecService.start(True)
@@ -194,7 +196,7 @@ def channelFilter(ref):
 		# -7 (errNoSourceFound) occurs when tuner is disconnected.
 		r = fakeRecResult in (0, -7)
 		#if not r:
-		#	print>>log, "Rejected (%d): %s" % (fakeRecResult, ref) 			
+		#	print>>log, "Rejected (%d): %s" % (fakeRecResult, ref)
 		return r
 	print>>log, "Invalid serviceref string:", ref
 	return False
@@ -708,7 +710,7 @@ def doneConfiguring(session, retval):
 		autoStartTimer.update()
 
 def doneImport(reboot=False, epgfile=None):
-	global _session, lastImportResult, BouquetChannelListList, parse_autotimer, serviceIgnoreList
+	global _session, lastImportResult, BouquetChannelListList, serviceIgnoreList
 	BouquetChannelListList = None
 	serviceIgnoreList = None
 	lastImportResult = (time.time(), epgimport.eventCount)
@@ -736,12 +738,10 @@ def doneImport(reboot=False, epgfile=None):
 				if autotimer is None:
 					from Plugins.Extensions.AutoTimer.AutoTimer import AutoTimer
 					autotimer = AutoTimer()
-				if not parse_autotimer:
-					autotimer.readXml()
-					checkDeepstandby(_session, parse=True)
-					autotimer.parseEPGAsync(simulateOnly=False)
-					print>>log, "[EPGImport] Run start parse autotimers"
-					parse_autotimer = True
+				autotimer.readXml()
+				checkDeepstandby(_session, parse=True)
+				autotimer.parseEPGAsync(simulateOnly=False)
+				print>>log, "[EPGImport] Run start parse autotimers"
 			except:
 				print>>log, "[EPGImport] Could not start autotimers"
 				checkDeepstandby(_session, parse=False)
@@ -754,15 +754,13 @@ class checkDeepstandby:
 		if parse:
 			self.FirstwaitCheck = enigma.eTimer()
 			self.FirstwaitCheck.callback.append(self.runCheckDeepstandby)
-			self.FirstwaitCheck.startLongTimer(30)
+			self.FirstwaitCheck.startLongTimer(600)
 			print>>log, "[EPGImport] Wait for parse autotimers 30 sec."
 		else:
 			self.runCheckDeepstandby()
 
 	def runCheckDeepstandby(self):
 		print>>log, "[EPGImport] Run check deep standby after import"
-		global parse_autotimer
-		parse_autotimer = False
 		if config.plugins.epgimport.shutdown.value and config.plugins.epgimport.deepstandby.value == 'wakeup':
 			if config.plugins.epgimport.deepstandby_afterimport.value and getFPWasTimerWakeup():
 				config.plugins.epgimport.deepstandby_afterimport.value = False

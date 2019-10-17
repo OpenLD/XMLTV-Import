@@ -54,18 +54,19 @@ def enumerateProgrammes(fp):
 
 class XMLTVConverter:
 	def __init__(self, channels_dict, category_dict, dateformat = '%Y%m%d%H%M%S %Z'):
-	    self.channels = channels_dict
-	    self.categories = category_dict
-	    if dateformat.startswith('%Y%m%d%H%M%S'):
-		    self.dateParser = quickptime
-	    else:
-		    self.dateParser = lambda x: time.strptime(x, dateformat)
+		self.channels = channels_dict
+		self.categories = category_dict
+		if dateformat.startswith('%Y%m%d%H%M%S'):
+			self.dateParser = quickptime
+		else:
+			self.dateParser = lambda x: time.strptime(x, dateformat)
 
 	def enumFile(self, fileobj):
 		print>>log, "[XMLTVConverter] Enumerating event information"
 		lastUnknown = None
 		for elem in enumerateProgrammes(fileobj):
 			channel = elem.get('channel')
+			channel = channel.lower()
 			if not channel in self.channels:
 				if lastUnknown!=channel:
 					print>>log, "Unknown channel: ", channel
@@ -78,8 +79,16 @@ class XMLTVConverter:
 				start = get_time_utc(elem.get('start'), self.dateParser)
 				stop = get_time_utc(elem.get('stop'), self.dateParser)
 				title = get_xml_string(elem, 'title')
-				subtitle = get_xml_string(elem, 'sub-title')
-				description = get_xml_string(elem, 'desc')
+				# try/except for EPG XML files with program entries containing <sub-title ... />
+				try:
+					subtitle = get_xml_string(elem, 'sub-title')
+				except:
+					subtitle = ''
+				# try/except for EPG XML files with program entries containing <desc ... />
+				try:
+					description = get_xml_string(elem, 'desc')
+				except:
+					description = ''
 				category = get_xml_string(elem, 'category')
 				cat_nr = self.get_category(category,  stop-start)
 				# data_tuple = (data.start, data.duration, data.title, data.short_description, data.long_description, data.type)
